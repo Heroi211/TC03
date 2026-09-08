@@ -1,10 +1,10 @@
 # Tech Challenge — Fase 3
 
-Triagem automática de laudos médicos (texto) com classificador NLP leve, API REST em Docker, foco em ciclo de vida do modelo (treino, inferência, latência).
+Triagem automática de laudos médicos (texto) com classificador NLP leve, API REST em Docker, foco em ciclo de vida do modelo (treino, inferência, latência e monitoramento).
 
 ## Objetivo
 
-Classificar urgência de exames de texto (`normal` / `atencao` / `urgente`) via API FastAPI empacotada em container Docker, com otimização de latência (ONNX), CI/CD e baseline documentado.
+Classificar urgência de exames de texto (`normal` / `atencao` / `urgente`) via API FastAPI empacotada em container Docker, com otimização de latência (ONNX), CI/CD, Airflow e monitoramento (Prometheus + Grafana).
 
 ## Decisão arquitetural de deploy em nuvem
 
@@ -28,35 +28,29 @@ Qualquer um dos três atende; a escolha abaixo é didática:
 
 Justificativa resumida: o workload é I/O + CPU leve (TF-IDF + modelo clássico), com necessidade de baixa latência de resposta e escala horizontal simples — perfil típico de **API em container**, não de cluster pesado de GPU.
 
-> Pendente: stack de monitoramento (Prometheus + Grafana via Docker Compose).
-
 ## Estrutura do projeto
 
 ```text
 TC_03/
-├── .github/workflows/ci.yml    # lint + pytest
-├── data/                       # CSV texto + target (gerado no treino)
-├── models/                     # Artefatos .joblib e .onnx
-├── airflow/
-│   └── dags/
-│       └── train_pipeline.py   # DAG: carregar → treinar → salvar
+├── .github/workflows/ci.yml
+├── monitoring/
+│   ├── prometheus.yml
+│   └── grafana/                 # datasource + dashboard (≥3 painéis)
+├── airflow/dags/train_pipeline.py
 ├── src/
-│   ├── api/main.py             # FastAPI de inferência
-│   ├── train.py                # Geração de dados + treino
-│   └── optimize.py             # Export ONNX + comparação de latência
-├── scripts/
-│   └── measure_latency.py
-├── tests/
+│   ├── api/main.py              # FastAPI + métricas Prometheus
+│   ├── logging_setup.py         # logs no stdout
+│   ├── train.py
+│   └── optimize.py
+├── docker-compose.yml           # API + Prometheus + Grafana
 ├── Dockerfile
-├── requirements.txt
-├── requirements-airflow.txt
 └── README.md
 ```
 
 ## Pré-requisitos
 
 - Python 3.11+ (local)
-- Docker (para empacotar a API)
+- Docker + Docker Compose
 - Conta/repositório GitHub (para o Actions)
 
 ## Como executar
@@ -75,9 +69,9 @@ pip install -r requirements.txt
 python -m src.train
 ```
 
-Gera `data/laudos.csv` (dataset sintético tabular, ≥ 2000 amostras) e `models/triagem_sklearn.joblib`.
+Gera `data/laudos.csv` (≥ 2000 amostras) e `models/triagem_sklearn.joblib`.
 
-**Premissa:** dataset sintético no estilo laudo/sintoma + target de urgência, para cumprir o requisito de classificação sem depender de credenciais de Kaggle. Pode ser trocado por CSV real com colunas `text` e `target`.
+**Premissa:** dataset sintético texto + target (pode trocar por CSV real com colunas `text` e `target`).
 
 ### 3. Otimizar para ONNX
 
@@ -85,19 +79,11 @@ Gera `data/laudos.csv` (dataset sintético tabular, ≥ 2000 amostras) e `models
 python -m src.optimize
 ```
 
-Gera `models/triagem.onnx` e imprime a comparação de latência sklearn vs ONNX Runtime.
-
-### 4. Subir a API (local)
-
-Por padrão a API usa o backend **onnx** (`MODEL_BACKEND=onnx`). Para o baseline sklearn:
+### 4. API local
 
 ```bash
-MODEL_BACKEND=sklearn uvicorn src.api.main:app --host 0.0.0.0 --port 8000
-# ou
 MODEL_BACKEND=onnx uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 ```
-
-Exemplo de chamada:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/predict \
@@ -105,13 +91,7 @@ curl -X POST http://127.0.0.1:8000/predict \
   -d '{"text":"sinais de emergencia com risco imediato ao paciente"}'
 ```
 
-Resposta esperada (exemplo):
-
-```json
-{"label":"urgente","latency_ms":0.05,"backend":"onnx"}
-```
-
-### 5. Testes e lint (local)
+### 5. Testes e lint
 
 ```bash
 ruff check src tests scripts
@@ -120,96 +100,83 @@ pytest -q
 
 ### 6. CI/CD (GitHub Actions)
 
-Arquivo: `.github/workflows/ci.yml`
+`.github/workflows/ci.yml` — no push/PR: **lint (ruff)** + **pytest**.
 
-No **push** e em **pull_request**, o workflow executa **2 automações**:
+### 7. Stack completa (API + Prometheus + Grafana)
 
-1. **Lint** (`ruff check`)
-2. **Testes** (`pytest`)
-
-Não é necessário configurar secrets para esse pipeline básico.
-
-### 7. API em Docker
+Gere os modelos antes do build:
 
 ```bash
 python -m src.train
 python -m src.optimize
-docker build -t triagem-api .
-docker run --rm -p 8000:8000 -e MODEL_BACKEND=onnx triagem-api
+docker compose up --build
 ```
 
-Em outro terminal:
+| Serviço | URL |
+| --- | --- |
+| API | http://localhost:8000 |
+| Métricas | http://localhost:8000/metrics |
+| Prometheus | http://localhost:9090 |
+| Grafana | http://localhost:3000 (admin/admin; anônimo em modo Viewer) |
+
+Dashboard provisionado: **Triagem API** com 3 painéis:
+
+1. Total de requisições (req/s)
+2. Latência (p50 / p95)
+3. Taxa de erro (4xx/5xx)
+
+JSON do dashboard: `monitoring/grafana/dashboards/triagem.json`
+
+Gere tráfego para popular os gráficos:
 
 ```bash
 python scripts/measure_latency.py --url http://127.0.0.1:8000 --n 50
 ```
 
-### 8. DAG Airflow (treino/retreino)
-
-Arquivo: `airflow/dags/train_pipeline.py`
-
-Fluxo: **carregar_dados → treinar_modelo → salvar_modelo**
-
-**Premissa necessária para implementação:** Airflow fica fora da imagem da API (dependência pesada). Use um venv separado ou `AIRFLOW_HOME` apontando para este projeto.
+Logs da API no terminal:
 
 ```bash
-python -m venv .venv-airflow
-source .venv-airflow/bin/activate
-pip install -r requirements.txt -r requirements-airflow.txt
-
-export AIRFLOW_HOME="$(pwd)/airflow"
-export AIRFLOW__CORE__LOAD_EXAMPLES=False
-export AIRFLOW__CORE__DAGS_FOLDER="$(pwd)/airflow/dags"
-
-airflow db migrate
-airflow standalone
+docker compose logs -f api
 ```
 
-No UI (http://localhost:8080), habilite e dispare a DAG `triagem_treino_pipeline`.
+### 8. DAG Airflow
 
-As funções de cada task também podem ser exercitadas via `pytest` (`tests/test_training_steps.py`) sem subir o scheduler.
+Arquivo: `airflow/dags/train_pipeline.py` — `carregar_dados → treinar_modelo → salvar_modelo`.
+
+Ver seção anterior no histórico do README / `requirements-airflow.txt` para subir o Airflow em venv separado.
 
 ## Latência
 
 ### Baseline HTTP (API)
 
-Medição com `scripts/measure_latency.py` (50 requisições, backend sklearn na época da Fase 1):
-
-| Ambiente | Métrica | Valor |
+| Ambiente | Latência média | p50 |
 | --- | --- | --- |
-| Local (uvicorn) | Latência média | **2.65 ms** |
-| Local (uvicorn) | Latência p50 | **2.27 ms** |
-| Docker (`triagem-api`) | Latência média | **3.72 ms** |
-| Docker (`triagem-api`) | Latência p50 | **2.24 ms** |
+| Local (uvicorn) | 2.65 ms | 2.27 ms |
+| Docker | 3.72 ms | 2.24 ms |
 
-### Comparação de inferência: sklearn vs ONNX
+### Inferência: sklearn vs ONNX (200 rodadas)
 
-Medição com `python -m src.optimize` (200 predições locais, sem overhead HTTP):
-
-| Backend | Latência média | Latência p50 |
+| Backend | Média | p50 |
 | --- | --- | --- |
-| sklearn (original) | **0.733 ms** | **0.590 ms** |
-| ONNX Runtime | **0.031 ms** | **0.029 ms** |
+| sklearn | 0.733 ms | 0.590 ms |
+| ONNX | 0.031 ms | 0.029 ms |
 | Speedup | **~23.8x** | — |
-
-Técnica aplicada: conversão do pipeline TF-IDF + Logistic Regression para ONNX (`skl2onnx`) e inferência via ONNX Runtime.
 
 ## Endpoint
 
 | Método | Rota | Descrição |
 | --- | --- | --- |
-| GET | `/health` | Saúde do serviço + backend ativo |
-| POST | `/predict` | Corpo `{"text":"..."}` → `label` + `latency_ms` + `backend` |
+| GET | `/health` | Saúde + backend |
+| GET | `/metrics` | Métricas Prometheus |
+| POST | `/predict` | Classificação do laudo |
 
 ## Status
 
-- [x] API FastAPI funcional
-- [x] Modelo sklearn (TF-IDF + Logistic Regression)
-- [x] Dockerfile
-- [x] Baseline de latência (HTTP)
-- [x] Otimização ONNX + comparação original vs otimizado
-- [x] Decisão arquitetural (cloud) neste README
-- [x] DAG Airflow (carregar → treinar → salvar)
-- [x] CI/CD (GitHub Actions: lint + test)
-- [ ] Prometheus + Grafana
+- [x] API FastAPI + Docker
+- [x] Modelo sklearn + otimização ONNX
+- [x] CI/CD (lint + test)
+- [x] DAG Airflow
+- [x] Logging stdout (terminal / docker logs)
+- [x] Prometheus + Grafana (Compose, ≥ 3 painéis)
+- [x] README / decisão cloud
 - [ ] Vídeo STAR (≤ 5 min)
