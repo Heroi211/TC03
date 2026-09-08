@@ -1,0 +1,2 @@
+# Dependências apenas para orquestração local da DAG (não entram na imagem da API).
+apache-airflow>=2.8.0,<3
