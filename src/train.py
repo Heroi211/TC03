@@ -13,9 +13,12 @@ from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 
+from src.logging_setup import get_logger
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATA = ROOT / "data" / "laudos.csv"
 DEFAULT_MODEL = ROOT / "models" / "triagem_sklearn.joblib"
+logger = get_logger("triagem.train")
 
 LABELS = ("normal", "atencao", "urgente")
 
@@ -96,10 +99,10 @@ def prepare_dataframe(
     if not data_path.exists():
         df = generate_dataset(n_samples=n_samples)
         df.to_csv(data_path, index=False)
-        print(f"Dataset gerado: {data_path} ({len(df)} linhas)")
+        logger.info("Dataset gerado: %s (%s linhas)", data_path, len(df))
     else:
         df = pd.read_csv(data_path)
-        print(f"Dataset carregado: {data_path} ({len(df)} linhas)")
+        logger.info("Dataset carregado: %s (%s linhas)", data_path, len(df))
 
     if "text" not in df.columns or "target" not in df.columns:
         raise ValueError("O CSV deve conter as colunas 'text' e 'target'.")
@@ -127,7 +130,7 @@ def fit_and_persist(
     print(classification_report(y_test, y_pred))
 
     joblib.dump(pipeline, model_path)
-    print(f"Modelo salvo em: {model_path}")
+    logger.info("Modelo salvo em: %s", model_path)
     return model_path
 
 
@@ -136,6 +139,7 @@ def train(
     model_path: Path = DEFAULT_MODEL,
     n_samples: int = 2400,
 ) -> Path:
+    logger.info("Iniciando treino | data=%s | model=%s", data_path, model_path)
     df = prepare_dataframe(data_path=data_path, n_samples=n_samples)
     return fit_and_persist(df, model_path=model_path)
 

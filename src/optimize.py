@@ -16,9 +16,12 @@ from skl2onnx.common.data_types import StringTensorType
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 
+from src.logging_setup import get_logger
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SKLEARN = ROOT / "models" / "triagem_sklearn.joblib"
 DEFAULT_ONNX = ROOT / "models" / "triagem.onnx"
+logger = get_logger("triagem.optimize")
 
 SAMPLES = [
     "exame dentro dos limites da normalidade sem alteracoes significativas",
@@ -73,7 +76,7 @@ def export_onnx(
 
     onnx_path.parent.mkdir(parents=True, exist_ok=True)
     onnx_path.write_bytes(onx.SerializeToString())
-    print(f"Modelo ONNX salvo em: {onnx_path}")
+    logger.info("Modelo ONNX salvo em: %s", onnx_path)
     return onnx_path
 
 
@@ -108,6 +111,12 @@ def compare_latency(
     print(f"sklearn  — média: {sk_mean:.3f} ms | p50: {statistics.median(sk_lat):.3f} ms")
     print(f"ONNX     — média: {onnx_mean:.3f} ms | p50: {statistics.median(onnx_lat):.3f} ms")
     print(f"Speedup (sklearn/onnx): {speedup:.2f}x")
+    logger.info(
+        "Latência comparada | sklearn_mean_ms=%.3f | onnx_mean_ms=%.3f | speedup=%.2fx",
+        sk_mean,
+        onnx_mean,
+        speedup,
+    )
 
     # Sanity: mesma previsão no mesmo texto
     text = SAMPLES[0]

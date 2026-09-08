@@ -57,3 +57,12 @@ def test_predict_returns_label(client: TestClient) -> None:
     assert body["label"] in {"normal", "atencao", "urgente"}
     assert body["latency_ms"] >= 0
     assert body["backend"] == "sklearn"
+
+
+def test_metrics_endpoint(client: TestClient) -> None:
+    client.post("/predict", json={"text": "exame normal sem alteracoes"})
+    response = client.get("/metrics")
+    assert response.status_code == 200
+    body = response.text
+    assert "triagem_requests_total" in body
+    assert "triagem_request_duration_seconds" in body
