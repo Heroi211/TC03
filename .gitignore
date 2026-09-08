@@ -1,21 +1,39 @@
+# Python
 __pycache__/
 *.py[cod]
+*$py.class
 *.egg-info/
+.eggs/
+dist/
+build/
+
+# Ambientes
 .venv/
 venv/
 .venv-airflow/
 .env
+.env.*
+
+# Ferramentas / cache
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+.coverage
+htmlcov/
 *.log
 .DS_Store
+.idea/
+.vscode/
+
+# Dados e artefatos gerados (não versionar binários grandes)
 data/*.csv
 !data/.gitkeep
 models/*.pkl
 models/*.joblib
 models/*.onnx
 !models/.gitkeep
+
+# Airflow local
 airflow/logs/
 airflow/airflow.db
 airflow/airflow.cfg
