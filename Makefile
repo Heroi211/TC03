@@ -1,5 +1,5 @@
 # Tech Challenge — atalhos de baixo esforço
-# Uso: make rise up
+# Uso: make rise up   (ou apenas: make rise)
 
 PYTHON ?= python
 COMPOSE ?= docker compose
@@ -9,15 +9,14 @@ COMPOSE ?= docker compose
 help:
 	@echo "Comandos:"
 	@echo "  make rise up   Sobe a stack completa (API + Prometheus + Grafana)"
+	@echo "  make rise      Idem"
 	@echo "  make down      Para e remove os containers"
 	@echo "  make logs      Acompanha logs da API"
 	@echo "  make status    Mostra status dos containers"
-	@echo "  make models    Só gera/treino + ONNX (sem Compose)"
+	@echo "  make models    Só gera treino + ONNX (sem Compose)"
 
-# `make rise up` declara dois alvos; `up` faz o trabalho e `rise` só encadeia.
-rise: up
-
-up: models
+# `make rise up` passa dois alvos: o trabalho fica em `rise`; `up` é no-op.
+rise: models
 	$(COMPOSE) up --build -d
 	@echo ""
 	@echo "Stack no ar:"
@@ -27,6 +26,9 @@ up: models
 	@echo "  Grafana     http://localhost:3000  (admin/admin)"
 	@echo ""
 	@echo "Logs: make logs"
+
+up:
+	@true
 
 models:
 	@if [ ! -f models/triagem_sklearn.joblib ] || [ ! -f models/triagem.onnx ]; then \
