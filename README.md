@@ -49,20 +49,27 @@ TC_03/
 ```
 ## Pré-requisitos
 
-- Python 3.11+ (local; usado pelo `make` para gerar modelos se necessário)
+- Python 3.11+ (`python3`)
 - Docker + Docker Compose
-- `make` (geralmente já vem no Linux/macOS)
+- `make`
 - Conta/repositório GitHub (para o Actions)
 
-Na máquina zerada, após o clone:
+Na máquina zerada, **um comando** configura e sobe tudo:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-make rise up
+git clone https://github.com/Heroi211/TC03.git
+cd TC03
+make rise
+# ou: make rise up
 ```
-## Como executar
+
+Isso cria `.venv`, instala `requirements.txt`, treina/otimiza o modelo e sobe API + Prometheus + Grafana.
+
+Para usar o Python da venv no terminal depois:
+
+```bash
+source .venv/bin/activate
+```## Como executar
 
 ### 1. Ambiente e dependências
 
@@ -113,18 +120,9 @@ pytest -q
 
 ### 7. Stack completa (API + Prometheus + Grafana)
 
-**Caminho mais simples** (com modelos gerados automaticamente se faltarem):
-
 ```bash
-make rise up
-```
-
-Equivalente manual:
-
-```bash
-python -m src.train
-python -m src.optimize
-docker compose up --build
+make rise
+# ou: make rise up
 ```
 
 | Serviço | URL |
@@ -134,33 +132,22 @@ docker compose up --build
 | Prometheus | http://localhost:9090 |
 | Grafana | http://localhost:3000 (admin/admin; anônimo em modo Viewer) |
 
-Dashboard provisionado: **Triagem API** com 3 painéis:
+Dashboard provisionado: **Triagem API** com 3 painéis (requisições, latência, erros).  
+JSON: `monitoring/grafana/dashboards/triagem.json`
 
-1. Total de requisições (req/s)
-2. Latência (p50 / p95)
-3. Taxa de erro (4xx/5xx)
-
-JSON do dashboard: `monitoring/grafana/dashboards/triagem.json`
-
-Gere tráfego para popular os gráficos:
+Gere tráfego:
 
 ```bash
+source .venv/bin/activate
 python scripts/measure_latency.py --url http://127.0.0.1:8000 --n 50
 ```
 
-Logs da API:
+Logs / parar:
 
 ```bash
 make logs
-# ou: docker compose logs -f api
-```
-
-Para encerrar:
-
-```bash
 make down
-```
-### 8. DAG Airflow
+```### 8. DAG Airflow
 
 Arquivo: `airflow/dags/train_pipeline.py` — `carregar_dados → treinar_modelo → salvar_modelo`.
 

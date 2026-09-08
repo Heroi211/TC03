@@ -1,22 +1,23 @@
-# Tech Challenge — atalhos de baixo esforço
-# Uso: make rise up   (ou apenas: make rise)
+# Tech Challenge — um comando sobe tudo
+# Uso: make rise   |   make rise up
 
-PYTHON ?= python
-COMPOSE ?= docker compose
+VENV      := .venv
+PYTHON    := $(VENV)/bin/python
+PIP       := $(VENV)/bin/pip
+COMPOSE   ?= docker compose
 
-.PHONY: rise up down logs status models help
+.PHONY: rise up down logs status bootstrap models help
 
 help:
 	@echo "Comandos:"
-	@echo "  make rise up   Sobe a stack completa (API + Prometheus + Grafana)"
-	@echo "  make rise      Idem"
-	@echo "  make down      Para e remove os containers"
-	@echo "  make logs      Acompanha logs da API"
-	@echo "  make status    Mostra status dos containers"
-	@echo "  make models    Só gera treino + ONNX (sem Compose)"
+	@echo "  make rise      Cria venv, instala deps, gera modelos e sobe a stack"
+	@echo "  make rise up   Idem (alias pedido no projeto)"
+	@echo "  make down      Para os containers"
+	@echo "  make logs      Logs da API"
+	@echo "  make status    Status dos containers"
 
-# `make rise up` passa dois alvos: o trabalho fica em `rise`; `up` é no-op.
-rise: models
+# `make rise up` → rise faz o trabalho; up é no-op.
+rise: bootstrap models
 	$(COMPOSE) up --build -d
 	@echo ""
 	@echo "Stack no ar:"
@@ -25,24 +26,30 @@ rise: models
 	@echo "  Prometheus  http://localhost:9090"
 	@echo "  Grafana     http://localhost:3000  (admin/admin)"
 	@echo ""
+	@echo "Venv pronta em $(VENV)/  (use: source $(VENV)/bin/activate)"
 	@echo "Logs: make logs"
 
 up:
 	@true
 
-models:
+# Cria .venv se não existir e garante requirements instalados.
+bootstrap:
+	@if [ ! -x "$(PYTHON)" ]; then \
+		echo ">> Criando venv em $(VENV)/ ..."; \
+		python3 -m venv $(VENV); \
+	else \
+		echo ">> Venv já existe: $(VENV)/"; \
+	fi
+	@echo ">> Instalando/atualizando requirements.txt ..."
+	@$(PIP) install --upgrade pip
+	@$(PIP) install -r requirements.txt
+	@echo ">> Dependências OK (interpretador padrão do Make: $(PYTHON))"
+
+models: bootstrap
 	@if [ ! -f models/triagem_sklearn.joblib ] || [ ! -f models/triagem.onnx ]; then \
-		echo ">> Gerando modelos (train + ONNX)..."; \
-		if [ -x .venv/bin/python ]; then \
-			.venv/bin/python -m src.train; \
-			.venv/bin/python -m src.optimize; \
-		elif command -v $(PYTHON) >/dev/null 2>&1; then \
-			$(PYTHON) -m src.train; \
-			$(PYTHON) -m src.optimize; \
-		else \
-			echo "Python não encontrado. Crie o venv: python -m venv .venv && .venv/bin/pip install -r requirements.txt"; \
-			exit 1; \
-		fi; \
+		echo ">> Gerando modelos (train + ONNX) ..."; \
+		$(PYTHON) -m src.train; \
+		$(PYTHON) -m src.optimize; \
 	else \
 		echo ">> Modelos já existem — pulando treino."; \
 	fi
