@@ -43,16 +43,25 @@ TC_03/
 │   ├── train.py
 │   └── optimize.py
 ├── docker-compose.yml           # API + Prometheus + Grafana
+├── Makefile                     # make rise up
 ├── Dockerfile
 └── README.md
 ```
-
 ## Pré-requisitos
 
-- Python 3.11+ (local)
+- Python 3.11+ (local; usado pelo `make` para gerar modelos se necessário)
 - Docker + Docker Compose
+- `make` (geralmente já vem no Linux/macOS)
 - Conta/repositório GitHub (para o Actions)
 
+Na máquina zerada, após o clone:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+make rise up
+```
 ## Como executar
 
 ### 1. Ambiente e dependências
@@ -104,7 +113,13 @@ pytest -q
 
 ### 7. Stack completa (API + Prometheus + Grafana)
 
-Gere os modelos antes do build:
+**Caminho mais simples** (com modelos gerados automaticamente se faltarem):
+
+```bash
+make rise up
+```
+
+Equivalente manual:
 
 ```bash
 python -m src.train
@@ -133,12 +148,18 @@ Gere tráfego para popular os gráficos:
 python scripts/measure_latency.py --url http://127.0.0.1:8000 --n 50
 ```
 
-Logs da API no terminal:
+Logs da API:
 
 ```bash
-docker compose logs -f api
+make logs
+# ou: docker compose logs -f api
 ```
 
+Para encerrar:
+
+```bash
+make down
+```
 ### 8. DAG Airflow
 
 Arquivo: `airflow/dags/train_pipeline.py` — `carregar_dados → treinar_modelo → salvar_modelo`.
