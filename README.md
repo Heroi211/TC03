@@ -65,6 +65,10 @@ make rise
 
 Isso cria `.venv`, instala `requirements.txt`, treina/otimiza o modelo e sobe **API + Prometheus + Grafana + Airflow**.
 
+- **`make rise`** — sobe reutilizando cache (rápido no dia a dia).
+- **`make fresh`** — limpa containers/volumes/imagem da API deste projeto e sobe do zero.
+- **`make clean`** — só limpa a stack Docker do projeto (não apaga `.venv`).
+
 Para usar o Python da venv no terminal depois:
 
 ```bash
@@ -150,8 +154,10 @@ python scripts/measure_latency.py --url http://127.0.0.1:8000 --n 50
 ```
 
 ```bash
-make logs    # logs da API
-make down    # para tudo
+make logs     # logs da API
+make down     # para containers
+make clean    # limpa stack Docker do projeto
+make fresh    # clean + rise (instalação limpa)
 ```
 
 ## Latência
