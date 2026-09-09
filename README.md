@@ -42,8 +42,8 @@ TC_03/
 │   ├── logging_setup.py         # logs no stdout
 │   ├── train.py
 │   └── optimize.py
-├── docker-compose.yml           # API + Prometheus + Grafana
-├── Makefile                     # make rise up
+├── docker-compose.yml           # API + Prometheus + Grafana + Airflow
+├── Makefile                     # make rise
 ├── Dockerfile
 └── README.md
 ```
@@ -63,13 +63,15 @@ make rise
 # ou: make rise up
 ```
 
-Isso cria `.venv`, instala `requirements.txt`, treina/otimiza o modelo e sobe API + Prometheus + Grafana.
+Isso cria `.venv`, instala `requirements.txt`, treina/otimiza o modelo e sobe **API + Prometheus + Grafana + Airflow**.
 
 Para usar o Python da venv no terminal depois:
 
 ```bash
 source .venv/bin/activate
-```## Como executar
+```
+
+## Como executar
 
 ### 1. Ambiente e dependências
 
@@ -118,7 +120,7 @@ pytest -q
 
 `.github/workflows/ci.yml` — no push/PR: **lint (ruff)** + **pytest**.
 
-### 7. Stack completa (API + Prometheus + Grafana)
+### 7. Stack completa (API + Prometheus + Grafana + Airflow)
 
 ```bash
 make rise
@@ -130,28 +132,27 @@ make rise
 | API | http://localhost:8000 |
 | Métricas | http://localhost:8000/metrics |
 | Prometheus | http://localhost:9090 |
-| Grafana | http://localhost:3000 (admin/admin; anônimo em modo Viewer) |
+| Grafana | http://localhost:3000 (admin/admin) |
+| Airflow | http://localhost:8080 (admin/admin) |
 
-Dashboard provisionado: **Triagem API** com 3 painéis (requisições, latência, erros).  
-JSON: `monitoring/grafana/dashboards/triagem.json`
+Dashboard Grafana: **Triagem API** (3 painéis). JSON: `monitoring/grafana/dashboards/triagem.json`
 
-Gere tráfego:
+No Airflow, abra a DAG `triagem_treino_pipeline` e dispare um run (Trigger).  
+Fluxo: `carregar_dados → treinar_modelo → salvar_modelo`.
+
+> O 1º start do Airflow pode levar 1–2 minutos (instala sklearn no container).
+
+Gere tráfego na API:
 
 ```bash
 source .venv/bin/activate
 python scripts/measure_latency.py --url http://127.0.0.1:8000 --n 50
 ```
 
-Logs / parar:
-
 ```bash
-make logs
-make down
-```### 8. DAG Airflow
-
-Arquivo: `airflow/dags/train_pipeline.py` — `carregar_dados → treinar_modelo → salvar_modelo`.
-
-Ver seção anterior no histórico do README / `requirements-airflow.txt` para subir o Airflow em venv separado.
+make logs    # logs da API
+make down    # para tudo
+```
 
 ## Latência
 

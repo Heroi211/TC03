@@ -5,7 +5,6 @@ services:
       - "8000:8000"
     environment:
       MODEL_BACKEND: onnx
-    # Garante logs legíveis no `docker compose logs -f api`
     logging:
       driver: json-file
       options:
@@ -36,3 +35,37 @@ services:
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
+
+  # Airflow standalone (webserver + scheduler) — 1 container, SequentialExecutor + sqlite
+  airflow:
+    image: apache/airflow:2.9.3-python3.11
+    user: "${AIRFLOW_UID:-50000}:0"
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/airflow.db
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+      PROJECT_ROOT: /opt/airflow/project
+      PYTHONPATH: /opt/airflow/project
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: admin
+      # deps mínimas para a DAG de treino
+      _PIP_ADDITIONAL_REQUIREMENTS: >-
+        scikit-learn>=1.5.0,<1.7 pandas>=2.2.0 joblib>=1.4.0 numpy>=2.0.0
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./src:/opt/airflow/project/src
+      - ./data:/opt/airflow/project/data
+      - ./models:/opt/airflow/project/models
+    command: standalone
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s

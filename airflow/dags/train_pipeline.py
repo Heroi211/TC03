@@ -9,6 +9,7 @@ Etapas (como no Tech Challenge):
 
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 from datetime import datetime
@@ -17,7 +18,7 @@ from pathlib import Path
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[2]))
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 

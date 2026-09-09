@@ -10,14 +10,15 @@ COMPOSE   ?= docker compose
 
 help:
 	@echo "Comandos:"
-	@echo "  make rise      Cria venv, instala deps, gera modelos e sobe a stack"
-	@echo "  make rise up   Idem (alias pedido no projeto)"
+	@echo "  make rise      Cria venv, deps, modelos e sobe a stack completa"
+	@echo "  make rise up   Idem"
 	@echo "  make down      Para os containers"
 	@echo "  make logs      Logs da API"
 	@echo "  make status    Status dos containers"
 
 # `make rise up` → rise faz o trabalho; up é no-op.
 rise: bootstrap models
+	@echo "AIRFLOW_UID=$$(id -u)" > .env
 	$(COMPOSE) up --build -d
 	@echo ""
 	@echo "Stack no ar:"
@@ -25,14 +26,16 @@ rise: bootstrap models
 	@echo "  Métricas    http://localhost:8000/metrics"
 	@echo "  Prometheus  http://localhost:9090"
 	@echo "  Grafana     http://localhost:3000  (admin/admin)"
+	@echo "  Airflow     http://localhost:8080  (admin/admin)"
+	@echo "              DAG: triagem_treino_pipeline"
 	@echo ""
-	@echo "Venv pronta em $(VENV)/  (use: source $(VENV)/bin/activate)"
-	@echo "Logs: make logs"
+	@echo "Venv: source $(VENV)/bin/activate"
+	@echo "Logs API: make logs"
+	@echo "Obs: o 1º start do Airflow pode levar 1–2 min (instala sklearn no container)."
 
 up:
 	@true
 
-# Cria .venv se não existir e garante requirements instalados.
 bootstrap:
 	@if [ ! -x "$(PYTHON)" ]; then \
 		echo ">> Criando venv em $(VENV)/ ..."; \
